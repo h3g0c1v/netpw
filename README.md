@@ -5,7 +5,7 @@ Tool written in Bash with which you can check the password of the network you sp
 ```bash
 git clone https://github.com/h3g0c1v/netpw
 cd netpw
-chmod u+s netpw
+chmod u+x netpw
 ./netpw
 ```
 
